@@ -1,0 +1,7 @@
+setup.py
+pyrrolysine.egg-info/PKG-INFO
+pyrrolysine.egg-info/SOURCES.txt
+pyrrolysine.egg-info/dependency_links.txt
+pyrrolysine.egg-info/top_level.txt
+src/__init__.py
+src/download.py
