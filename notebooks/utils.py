@@ -4,6 +4,65 @@ import numpy as np
 from tqdm import tqdm 
 import glob
 import os
+import re 
+
+blue = '#0000ff'
+red = '#ff0000'
+green = '#aaffaa'
+gray = '#696969'
+
+dayhoff = {'A':'A','G':'A','P':'A','S':'A','T':'A','D':'B','E':'B','N':'B','Q':'B','R':'C','H':'C','K':'C', 'M':'D','I':'D','L':'D','V':'D','F':'E','W':'E','Y':'E','C':'F' }
+
+hp = {'A':'H','V':'H','L':'H','I':'H','P':'H','F':'H','W':'H','M':'H','Y':'H','G':'P','S':'P','T':'P','C':'P','N':'P','Q':'P','D':'P','E':'P','K':'P','R':'P','H':'P'}
+
+ba = {'K':'B','R':'B','H':'B','D':'A','E':'A','A':'N','C':'N','F':'N','G':'N','I':'N','L':'N','M':'N','N':'N','P':'N','Q':'N','S':'N','T':'N','V':'N','W':'N','Y':'N'}
+
+
+def make_itol_annotation_file(arf1_df:pd.DataFrame, palette=None, path:str=None, field:str=None, widths:dict=None):
+    header_lines = ['TREE_COLORS', 'SEPARATOR COMMA', 'DATA']
+    # NODE_ID TYPE COLOR LABEL_OR_STYLE SIZE_FACTOR
+    lines = list()
+    for row in arf1_df.itertuples():
+        color = palette[getattr(row, field)]
+        width = widths[getattr(row, field)]
+        lines += [f'{row.Index},branch,{color},normal,{width}']
+    lines = header_lines + lines 
+    with open(path, 'w') as f:
+        f.write('\n'.join(lines))
+
+
+
+def mutual_information(msa_df:pd.DataFrame):
+
+    length = len(msa_df.seq.iloc[0])
+
+    # First compute the frequency of each amino acid in the alphabet.
+    m = np.array([list(seq) for seq in msa_df.seq_a])
+    f = [{token.item():(col == token).mean() for token in np.unique(col)} for col in m.T]
+
+    # Then compute the co-ocurrence for each pair of tokens at each position. 
+
+    # f_ab = [[None] * length_b] * length_a
+    f_ab = [[None for _ in range(length)] for _ in range(length)]
+    for i in range(length):
+        for j in range(length):
+            pairs = np.array([''.join(pair) for pair in (zip(m.T[i], m.T[j]))])
+            f_ab[i][j] = {pair:(pairs == pair).mean() for pair in np.unique(pairs)}
+
+    def h_i(i, f:np.ndarray):
+        # k = len(f[i]) # Get the alphabet size. 
+        return - np.sum([p * np.log2(p) for p in f[i].values()])
+
+    def h_ij(i, j, f_ab:np.ndarray=f_ab, f_a:np.ndarray=f_a, f_b:np.ndarray=f_b):
+        # k = len(f_ab[i][j]) # Get the alphabet size. 
+        return - np.sum([p * np.log2(p) for p in f_ab[i][j].values()])
+    
+    h = np.empty(shape=(length, length))
+    for i in range(length):
+        for j in range(length):
+            h[i, j] = (h_i(i, f) + h_i(j, f) - h_ij(i, j)) / h_ij(i, j)
+    
+    return h
 
 
 def get_split_figure(bottom_range:tuple, top_range:tuple):
@@ -22,7 +81,7 @@ def get_split_figure(bottom_range:tuple, top_range:tuple):
     ax_top.tick_params(labelbottom=False, bottom=False)  # Don't show tick labels on the top
 
     # Add diagonal lines to indicate the break. 
-    d = 0.015 
+    d = 0.015 # * ((top_range[1] - top_range[0]) + (bottom_range[1] - bottom_range[0]))
     kwargs = dict(transform=ax_top.transAxes, color='k', clip_on=False)
     ax_top.plot((-d, +d), (-d, +d), **kwargs)
     ax_top.plot((1 - d, 1 + d), (-d, +d), **kwargs)
@@ -73,7 +132,7 @@ def _hmmer_load(path:str):
 
 
 # ['aRF1_eRF1', 'pelota', 'pyrrolys_PylC', 'pyrrolys_PylB', 'pyrrolys_PylD', 'PylS_Nterm']
-def hmmer_load(data_dir='../data/hmmer', max_e_values:dict=dict(), query_names:list=['aRF1_eRF1', 'pelota', 'pyrrolys_PylC', 'pyrrolys_PylB', 'pyrrolys_PylD', 'PylS_Nterm'], best_hit_only:bool=True):
+def hmmer_load(data_dir='../data/hmmer', max_e_values:dict=dict(), query_names:list=['aRF1_eRF1', 'pelota', 'pyrrolys_PylC', 'pyrrolys_PylB', 'pyrrolys_PylD', 'PylS_Nterm', 'PylS_Cterm'], best_hit_only:bool=True):
     hmmer_df = list()
     for path in tqdm(glob.glob(os.path.join(data_dir, '*')), desc='hmmer_load'):
         genome_id = os.path.basename(path).replace('.tab', '')
