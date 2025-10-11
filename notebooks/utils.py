@@ -32,35 +32,35 @@ def make_itol_annotation_file(arf1_df:pd.DataFrame, palette=None, path:str=None,
 
 
 
-def mutual_information(msa_df:pd.DataFrame):
+def mutual_information(alignment:np.ndarray):
 
-    length = len(msa_df.seq.iloc[0])
+    length = alignment.shape[-1]
+    n = alignment.shape[0]
 
     # First compute the frequency of each amino acid in the alphabet.
-    m = np.array([list(seq) for seq in msa_df.seq_a])
-    f = [{token.item():(col == token).mean() for token in np.unique(col)} for col in m.T]
+    f = [{token.item():(col == token).mean() for token in np.unique(col)} for col in alignment.T]
 
     # Then compute the co-ocurrence for each pair of tokens at each position. 
-
-    # f_ab = [[None] * length_b] * length_a
     f_ab = [[None for _ in range(length)] for _ in range(length)]
     for i in range(length):
         for j in range(length):
-            pairs = np.array([''.join(pair) for pair in (zip(m.T[i], m.T[j]))])
-            f_ab[i][j] = {pair:(pairs == pair).mean() for pair in np.unique(pairs)}
+            pairs, counts = np.unique(np.char.add(alignment.T[i], alignment.T[j]), return_counts=True)
+            f_ab[i][j] = dict(zip(pairs, counts / n))
 
     def h_i(i, f:np.ndarray):
-        # k = len(f[i]) # Get the alphabet size. 
         return - np.sum([p * np.log2(p) for p in f[i].values()])
 
-    def h_ij(i, j, f_ab:np.ndarray=f_ab, f_a:np.ndarray=f_a, f_b:np.ndarray=f_b):
+    def h_ij(i, j, f_ab:np.ndarray=f_ab):
         # k = len(f_ab[i][j]) # Get the alphabet size. 
         return - np.sum([p * np.log2(p) for p in f_ab[i][j].values()])
     
     h = np.empty(shape=(length, length))
     for i in range(length):
         for j in range(length):
-            h[i, j] = (h_i(i, f) + h_i(j, f) - h_ij(i, j)) / h_ij(i, j)
+            if h_ij(i, j) == 0: # This will be zero for fully-conserved columns. 
+                h[i, j] = np.nan 
+            else:
+                h[i, j] = (h_i(i, f) + h_i(j, f) - h_ij(i, j)) / h_ij(i, j)
     
     return h
 
