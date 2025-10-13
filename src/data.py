@@ -3,6 +3,7 @@ from src.files.fasta import FASTAFile
 from tqdm import tqdm
 import numpy as np 
 import os
+import re 
 
 genus_to_order_map = dict()
 genus_to_order_map['Methanosarcina'] = 'Methanosarcinales'
@@ -24,6 +25,7 @@ genus_to_order_map['none'] = 'none'
 
 
 get_genus = lambda taxonomy : re.search('g__([^;]+)', taxonomy).group(1) if (re.search('g__([^;]+)', taxonomy) is not None) else 'none'
+get_species = lambda taxonomy : re.search('s__([^;]+)', taxonomy).group(1) if (re.search('s__([^;]+)', taxonomy) is not None) else 'none'
 get_order = lambda taxonomy : re.search('o__([^;]+)', taxonomy).group(1) if (re.search('o__([^;]+)', taxonomy) is not None) else 'none'
 get_phylum = lambda taxonomy : re.search('p__([^;]+)', taxonomy).group(1) if (re.search('p__([^;]+)', taxonomy) is not None) else 'none'
 

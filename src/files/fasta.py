@@ -39,7 +39,7 @@ class FASTAFile():
 
         obj.seqs = df.seq.values
         obj.ids = df.index.values 
-        obj.descriptions = df.description.values if ('description' in df.columns) else [''] * len(self.ids)
+        obj.descriptions = df.description.values if ('description' in df.columns) else [''] * len(obj.ids)
         return obj
         
     @classmethod
