@@ -31,6 +31,31 @@ def make_itol_annotation_file(arf1_df:pd.DataFrame, palette=None, path:str=None,
         f.write('\n'.join(lines))
 
 
+def make_chimerax_attribute_file(positions:list, scores:list, path:str='../data/alphafold/arf1_alphafold_attributes.defattr'):
+    content = ['attribute: score\nmatch mode: 1-to-1\nrecipient: residues\n']
+    for i, score in zip(positions, scores):
+        content += [f'\t:{i + 1}\t{score}\n'] # Residues are 1-indexed. 
+
+    with open(path, 'w') as f:
+        f.write(''.join(content))
+
+
+def get_entropies(alignment):
+    most_common_symbols = list()
+    entropies = list()
+    for col in alignment.T:
+        symbols, counts = np.unique(col, return_counts=True)
+        most_common_symbols.append(symbols[np.argsort(counts)][-1])
+
+        if len(symbols) == 1: # If the column is fully-conserved...
+            entropies.append(0)
+            continue 
+
+        p = counts / len(col)
+        entropies.append(-np.sum(p * np.log(p) / np.log(len(symbols))))
+
+    return np.array(most_common_symbols), np.array(entropies)
+
 
 def mutual_information(alignment:np.ndarray):
 
