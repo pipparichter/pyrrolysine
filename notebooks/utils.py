@@ -4,6 +4,7 @@ import numpy as np
 from tqdm import tqdm 
 import glob
 import os
+from src.files.fasta import FASTAFile
 import re 
 
 blue = '#0000ff'
@@ -29,6 +30,13 @@ def make_itol_annotation_file(arf1_df:pd.DataFrame, palette=None, path:str=None,
     lines = header_lines + lines 
     with open(path, 'w') as f:
         f.write('\n'.join(lines))
+
+
+def load_msa(path, ids:list=None):
+    msa_df = FASTAFile().from_fasta(path).to_df()
+    msa_df = msa_df.loc[ids].copy()
+    msa_arr = [list(seq) for seq in msa_df.seq]
+    return msa_df.index.values, np.array(msa_arr)
 
 
 def make_chimerax_attribute_file(positions:list, scores:list, path:str='../data/alphafold/arf1_alphafold_attributes.defattr'):
