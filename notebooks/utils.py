@@ -7,6 +7,7 @@ import os
 from src.files.fasta import FASTAFile
 import re 
 
+
 blue = '#0000ff'
 red = '#ff0000'
 green = '#aaffaa'
@@ -19,17 +20,6 @@ hp = {'A':'H','V':'H','L':'H','I':'H','P':'H','F':'H','W':'H','M':'H','Y':'H','G
 ba = {'K':'B','R':'B','H':'B','D':'A','E':'A','A':'N','C':'N','F':'N','G':'N','I':'N','L':'N','M':'N','N':'N','P':'N','Q':'N','S':'N','T':'N','V':'N','W':'N','Y':'N'}
 
 
-def make_itol_annotation_file(arf1_df:pd.DataFrame, palette=None, path:str=None, field:str=None, widths:dict=None):
-    header_lines = ['TREE_COLORS', 'SEPARATOR COMMA', 'DATA']
-    # NODE_ID TYPE COLOR LABEL_OR_STYLE SIZE_FACTOR
-    lines = list()
-    for row in arf1_df.itertuples():
-        color = palette[getattr(row, field)]
-        width = widths[getattr(row, field)]
-        lines += [f'{row.Index},branch,{color},normal,{width}']
-    lines = header_lines + lines 
-    with open(path, 'w') as f:
-        f.write('\n'.join(lines))
 
 
 def load_msa(path, ids:list=None):

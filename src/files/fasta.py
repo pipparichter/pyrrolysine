@@ -6,15 +6,16 @@ from Bio import SeqIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 import pandas as pd 
+import numpy as np 
 
 
-# def parser_prodigal(description:str):
-#     pattern = r'# ([\d]+) # ([\d]+) # ([-1]+) # ID=([^;]+);partial=([^;]+);start_type=([^;]+);rbs_motif=([^;]+);rbs_spacer=([^;]+);gc_cont=([\.\w]+)'
-#     columns = ['start', 'stop', 'strand', 'ID', 'partial', 'start_type', 'rbs_motif', 'rbs_spacer', 'gc_content']
-#     match = re.search(pattern, description)
-#     parsed_header = {col:match.group(i + 1) for i, col in enumerate(columns)}
-#     parsed_header['rbs_motif'] = 'none' if (parsed_header['rbs_motif'] == 'None') else parsed_header['rbs_motif']
-#     return parsed_header
+def parse_prodigal_description(description:str):
+    pattern = r'# ([\d]+) # ([\d]+) # ([-1]+) # ID=([^;]+);partial=([^;]+);start_type=([^;]+);rbs_motif=([^;]+);rbs_spacer=([^;]+);gc_cont=([\.\w]+)'
+    columns = ['start', 'stop', 'strand', 'ID', 'partial', 'start_type', 'rbs_motif', 'rbs_spacer', 'gc_content']
+    match = re.search(pattern, description)
+    parsed_header = {col:match.group(i + 1) for i, col in enumerate(columns)}
+    parsed_header['rbs_motif'] = 'none' if (parsed_header['rbs_motif'] == 'None') else parsed_header['rbs_motif']
+    return parsed_header 
 
 
 # def parser_default(description:str):
@@ -53,6 +54,51 @@ class FASTAFile():
             obj.seqs.append(str(record.seq))
         f.close()
         return obj 
+    
+    def get_type(self):
+        residues = ''.join(self.seqs)
+        residues = np.unique(list(residues))
+        if len(residues) < 20:
+            return 'nt'
+        else:
+            return 'aa'
+        
+    def get_gc_content(self, exclude_unknown:bool=False, check:bool=False):
+        if check:
+            assert self.get_type() == 'nt', 'FASTAFile.get_gc_content: Needs to be a FASTA nucleotide file to compute GC content.'
+        residues = ''.join(self.seqs)
+        if exclude_unknown:
+            residues = residues.replace('N', '')
+        n = len(residues) # Total number of residues. 
+        num_g = residues.count('G')
+        num_c = residues.count('C')
+        return (num_g + num_c) / n
+            
+    def to_df(self, parse_description:bool=False) -> pd.DataFrame:
+
+        df = []
+        for id_, seq, description in zip(self.ids, self.seqs, self.descriptions):
+            row = {'description':description} 
+            row['id'] = id_
+            row['seq'] = seq
+            if parse_description:
+                row.update(parse_prodigal_description(description))
+            df.append(row)
+            
+        df = pd.DataFrame(df).set_index('id')
+        return df
+
+    def write(self, path:str, mode:str='w') -> NoReturn:
+        f = open(path, mode=mode)
+        records = []
+        for id_, seq, description in zip(self.ids, self.seqs, self.descriptions):
+            record = SeqRecord(Seq(seq), id=id_, description=description)
+            records.append(record)
+        SeqIO.write(records, f, 'fasta')
+        f.close()
+
+
+
 
 
     # @staticmethod
@@ -78,23 +124,3 @@ class FASTAFile():
     #     for contig_id, contig in zip(contig_ids, contig):
     #         coords = 
         
-            
-    def to_df(self, prodigal_output:bool=True) -> pd.DataFrame:
-
-        df = []
-        for id_, seq, description in zip(self.ids, self.seqs, self.descriptions):
-            row = {'description':description} 
-            row['id'] = id_
-            row['seq'] = seq
-            df.append(row)
-        df = pd.DataFrame(df).set_index('id')
-        return df
-
-    def write(self, path:str, mode:str='w') -> NoReturn:
-        f = open(path, mode=mode)
-        records = []
-        for id_, seq, description in zip(self.ids, self.seqs, self.descriptions):
-            record = SeqRecord(Seq(seq), id=id_, description=description)
-            records.append(record)
-        SeqIO.write(records, f, 'fasta')
-        f.close()
