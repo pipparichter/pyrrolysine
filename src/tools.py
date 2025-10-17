@@ -6,7 +6,7 @@ import matplotlib.cm as cm
 import matplotlib.colors
 import numpy as np
 import pandas as pd 
-
+import re 
 
 def get_palette(name=None, values=None):
     name = 'coolwarm' if (name is None) else name
@@ -17,7 +17,7 @@ def get_palette(name=None, values=None):
     return palette
 
 
-def make_itol_annotation_file(df:pd.DataFrame, palette='coolwarm', path:str=None, field:str=None, widths:dict=dict()):
+def make_itol_annotation_file(df:pd.DataFrame, palette='coolwarm', path:str=None, field:str=None, styles:dict=dict(), sizes=dict()):
     header_lines = ['TREE_COLORS', 'SEPARATOR COMMA', 'DATA']     # NODE_ID TYPE COLOR LABEL_OR_STYLE SIZE_FACTOR
 
     lines = list()
@@ -30,12 +30,31 @@ def make_itol_annotation_file(df:pd.DataFrame, palette='coolwarm', path:str=None
 
     for row in df.itertuples():
         color = palette[getattr(row, field)]
-
-        width = widths.get(getattr(row, field), 2)
-        lines += [f'{row.Index},branch,{color},normal,{width}']
+        style = styles.get(row.Index, 'normal') 
+        size = sizes.get(row.Index, 1)
+        lines += [f'{row.Index},label,{color},{style},{size}']
+        # lines += [f'{row.Index},label,{color},normal,{width}']
     lines = header_lines + lines 
     with open(path, 'w') as f:
         f.write('\n'.join(lines))
+
+
+
+# def make_itol_annotation_file(df:pd.DataFrame, palette='coolwarm', path:str=None, field:str=None, size:int=10):
+#     header_lines = ['DATASET_SYMBOL', 'SEPARATOR SPACE', 'DATASET_LABEL leaves', 'COLOR #000000', 'DATA']
+
+#     if type(palette) == str:
+#         values = df[field].unique()
+#         palette = get_palette(name=palette, values=values)
+
+#     lines = list()
+#     for row in df.itertuples():
+#         color = palette[getattr(row, field)]
+#         lines += [f'{row.Index} 2 {color} 1 {size} 0 {row.Index}']
+#         # lines += [f'{row.Index} {color} 1 {size} #000000 1']
+#     lines = header_lines + lines 
+#     with open(path, 'w', encoding='utf-8') as f:
+#         f.write('\n'.join(lines))
 
 
 def run_prodigal(input_dir:str='../data/ncbi/genomes/', output_dir='../data/prodigal/'):

@@ -8,10 +8,26 @@ from src.files.fasta import FASTAFile
 import re 
 
 
-blue = '#0000ff'
-red = '#ff0000'
-green = '#aaffaa'
-gray = '#696969'
+# blue = '#0000ff'
+# red = '#ff0000'
+# green = '#aaffaa'
+# gray = '#696969'
+
+['#3182bd', '#6baed6', '#9ecae1', '#c6dbef',
+'#e6550d', '#fd8d3c', '#fdae6b', '#fdd0a2',
+'#31a354', '#74c476', '#a1d99b', '#c7e9c0',
+'#756bb1', '#9e9ac8', '#bcbddc', '#dadaeb',
+'#636363', '#969696', '#bdbdbd', '#d9d9d9']
+
+darkblue = '#3182bd'
+lightblue = '#6baed6'
+gray = '#969696'
+lightgreen = '#74c476'
+darkgreen = '#31a354'
+red = '#e6550d'
+orange = '#fdae6b'
+
+
 
 dayhoff = {'A':'A','G':'A','P':'A','S':'A','T':'A','D':'B','E':'B','N':'B','Q':'B','R':'C','H':'C','K':'C', 'M':'D','I':'D','L':'D','V':'D','F':'E','W':'E','Y':'E','C':'F' }
 
@@ -21,11 +37,18 @@ ba = {'K':'B','R':'B','H':'B','D':'A','E':'A','A':'N','C':'N','F':'N','G':'N','I
 
 
 
+def load_msa(path, ids:list=None, conservation_threshold:float=0.8):
+    is_conserved = lambda col : (col != '-').astype(int).mean() > conservation_threshold # Flag conserved positions as those where at least 80 percent of the sequences do not have a gap. 
 
-def load_msa(path, ids:list=None):
     msa_df = FASTAFile().from_fasta(path).to_df()
     msa_df = msa_df.loc[ids].copy()
-    msa_arr = [list(seq) for seq in msa_df.seq]
+    msa_arr = np.array([list(seq) for seq in msa_df.seq])
+
+    conserved_positions = np.where([is_conserved(col) for col in msa_arr.T])[0]
+    print('load_msa: Num. conserved positions:', len(conserved_positions))
+    print('load_msa: Num. aligned sequences:', len(msa_arr))
+    msa_arr = msa_arr[:, conserved_positions].copy() # Ignore the extra junk in the alignment.
+
     return msa_df.index.values, np.array(msa_arr)
 
 
