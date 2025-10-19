@@ -47,12 +47,6 @@ def get_stop_codon_info(fa_path:str=None, fn_path:str=None):
 def build_stop_codon_dataset(genome_ids:list, fn_dir:str='../dta/ncbi/genoms', fa_dir:str='../data/prodigal', path:str='../data/stop_codon.csv'):
 
     if not os.path.exists(path):
-        fn_dir = '../data/ncbi/genomes'
-        fa_dir = '../data/prodigal'
-
-        # genome_ids = [os.path.basename(path).replace('.fn', '') for path in glob.glob(f'{fn_dir}/*')]
-        
-
         stop_codon_df = list() 
         for genome_id in tqdm(genome_ids, 'build_stop_codon_dataset'):
             row = {'genome_id':genome_id}

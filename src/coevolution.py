@@ -7,84 +7,95 @@ aas = 'ACDEFGHIKLMNPQRSTVWY'
 # aas = ''.join(list(dayhoff.values()))
 
 def get_alphabet(order:int=1):
-    # alphabet = list(permutations(aas, order))
     alphabet = [''.join(pair) for pair in product(aas, repeat=order)]
-    # alphabet = [''.join(pair) for pair in alphabet]
     return sorted(alphabet)
 
-def get_probabilities(col, alphabet:list=None):
+def _get_frequencies(col, alphabet:list=None,):
     symbols, counts = np.unique(col, return_counts=True)
     counts = dict(zip(symbols, counts))
     counts = np.array([counts.get(a, 0) for a in alphabet])
     return counts / counts.sum() if (counts.sum() > 0) else np.array([np.nan] * len(alphabet))
-
-
-# For each phylum, model each residue as a distribution of possible values, e.g. D = {A:0.4, T:0.3, ...} which should sum to one. 
-# The average should still sum to one, as sum(D1, D2, ..., Dn) = n / n = 1
-
-# def get_divergence_scores(alignment_df, alignment_length:int=alignment_length):
-
-#     # alignment_df = alignment_df.replace(dayhoff).copy()
-#     assert 'order' in alignment_df.columns, 'get_scores: Taxonomy needs to be specified.'
-#     assert 'has_pyl' in alignment_df.columns, 'get_scores: Whether or not the organism is Pyl+ needs to be specified.'
-#     dfs = dict()
-#     for has_pyl, df in alignment_df.groupby('has_pyl'):
-#         # How to merge across phyla? Maybe compute probabilities independently and then take the average so that
-#         # each phylum contributes equally to the final probabilities. 
-#         df = sum([get_probabilities(df_, alignment_length=alignment_length) for _, df_ in df.groupby('order')]) 
-#         df = df / np.sum(df.values, keepdims=True, axis=1)
-#         # df = df[df.sum(axis=1) != 0].copy()
-#         dfs[has_pyl] = df
-
-#     # scores = [chisquare(dfs[True].iloc[i].values.ravel(), dfs[False].iloc[i].values.ravel()) for i in range(alignment_length)]
-#     scores = [np.linalg.norm(dfs[True].iloc[i].values.ravel() - dfs[False].iloc[i].values.ravel()) for i in range(alignment_length)]
-#     # I want the pairwise distances between columns, so shape should be alignment_length, alignment_length
-#     return scores
-
-
-def _get_scores_order_1(alignment_df):
-
-    assert 'has_pyl' in alignment_df.columns, 'get_scores: Whether or not the organism is Pyl+ needs to be specified.'
-    n = sum([type(col) == int for col in alignment_df.columns]) # The alignment length, i.e. number of numeric columns. 
     
-    alphabet = get_alphabet(order=1)
-    f_dict = dict()
-    for has_pyl, df in alignment_df.groupby('has_pyl'):
-        f_dict[has_pyl] = np.array([get_probabilities(df[i].values, alphabet=alphabet) for i in range(n)])
 
-    # Comparing Euclidean distances between column vectors. 
-    scores = np.array([np.linalg.norm(f_dict[True][i] - f_dict[False][i]) for i in range(n)])
+def get_frequencies(alignment:np.ndarray, alphabet:list=None, order:int=1):
+    alphabet = get_alphabet(order=order)
+    n = alignment.shape[-1] # The alignment length, i.e. number of numeric columns. 
+    f = np.empty(shape=[n]*order + [len(alphabet)], dtype=np.float16)
+
+    for i in product(np.arange(n), repeat=order):
+        col = np.array([''.join(residues) for residues in alignment.T[i]])
+        # col = np.char.add.reduce(alignment.T[i], axis=0) # Concatenate over rows.
+        f[i] = _get_frequencies(col, alphabet=alphabet)
+    return f
+
+
+def get_most_common_symbols(f:np.ndarray, order:int=1):
+    alphabet = get_alphabet(order=order)
+    return np.array(alphabet)[np.argmax(f, axis=-1)]
+
+def get_scores(alignment_df, order:int=1, group_by:str='has_pyl', normalize:bool=True):
+
+    max_score = np.sqrt(2)
+
+    assert group_by in alignment_df.columns, f'get_scores: Specified grouping column, {group_by}, is not present.'
+    groups = alignment_df[group_by].unique()
+    assert len(groups) == 2, f'get_scores: Expected two groups, but got {', '.join(groups)}'
+
+    n = sum([type(col) == int for col in alignment_df.columns]) # The alignment length, i.e. number of numeric columns. 
+
+    f_dict = dict()
+    for group, df in alignment_df.groupby(group_by):
+        alignment = df[np.arange(n)].values # Extract the alignment array. 
+        f_dict[group] = get_frequencies(alignment, order=order)
+
+    # Comparing Euclidean distances between vectors. 
+    scores = np.linalg.norm(f_dict[groups[1]] - f_dict[groups[0]], axis=-1)
+    scores = scores / max_score if normalize else scores
     return scores
 
 
-# Want to support a similar computation for co-occurring pairs
-def _get_scores_order_2(alignment_df):
-
-    assert 'has_pyl' in alignment_df.columns, 'get_scores: Whether or not the organism is Pyl+ needs to be specified.'
+def get_entropies(alignment_df):
     n = sum([type(col) == int for col in alignment_df.columns]) # The alignment length, i.e. number of numeric columns. 
+    alignment = alignment_df[np.arange(n)].values # Extract the alignment array. 
+
+    f = get_frequencies(alignment, order=1)
+    symbols = get_most_common_symbols(f, order=1) 
+
+    # Compute the entropy for each alignment column, which corresponds to a row in the frequency matrix. 
+    get_entropy = lambda col : 0 if (np.count_nonzero(col) == 1) else sum(-np.log(col[col != 0]) / np.log(np.count_nonzero(col)) * col[col != 0])
+    entropies = [get_entropy(col) for col in f] 
+    return entropies, symbols 
+
+
+
+# def get_mutual_information(alignment:np.ndarray):
+
+#     length = alignment.shape[-1]
+#     n = alignment.shape[0]
+
+#     # First compute the frequency of each amino acid in the alphabet.
+#     f = [{token.item():(col == token).mean() for token in np.unique(col)} for col in alignment.T]
+
+#     # Then compute the co-ocurrence for each pair of tokens at each position. 
+#     f_ab = [[None for _ in range(length)] for _ in range(length)]
+#     for i in range(length):
+#         for j in range(length):
+#             pairs, counts = np.unique(np.char.add(alignment.T[i], alignment.T[j]), return_counts=True)
+#             f_ab[i][j] = dict(zip(pairs, counts / n))
+
+#     def h_i(i, f:np.ndarray):
+#         return - np.sum([p * np.log2(p) for p in f[i].values()])
+
+#     def h_ij(i, j, f_ab:np.ndarray=f_ab):
+#         # k = len(f_ab[i][j]) # Get the alphabet size. 
+#         return - np.sum([p * np.log2(p) for p in f_ab[i][j].values()])
     
-    alphabet = get_alphabet(order=2)
-    f_dict = dict()
-
-    for has_pyl, df in alignment_df.groupby('has_pyl'):
-        f = np.empty(shape=(n, n, len(alphabet)), dtype=np.float16)
-        # Compute the co-ocurrence for each pair of tokens at each position. 
-        for i in range(n):
-            for j in range(n):
-                col = np.char.add(df[i].values, df[j].values)
-                f[i][j] = get_probabilities(col, alphabet=alphabet)
-        f_dict[has_pyl] = f.copy()
-
-    scores = np.empty((n, n))
-    for i in range(n):
-        for j in range(n):
-            scores[i][j] = np.linalg.norm(f_dict[True][i][j] - f_dict[False][i][j])
-
-    return scores
-
-
-def get_scores(alignment_df, order:int=1):
-    if order == 1:
-        return _get_scores_order_1(alignment_df)
-    elif order == 2:
-        return _get_scores_order_2(alignment_df)
+#     h = np.empty(shape=(length, length))
+#     for i in range(length):
+#         for j in range(length):
+#             if h_ij(i, j) == 0: # This will be zero for fully-conserved columns. 
+#                 h[i, j] = np.nan 
+#             else:
+#                 h[i, j] = (h_i(i, f) + h_i(j, f) - h_ij(i, j)) / h_ij(i, j)
+    
+#     return h

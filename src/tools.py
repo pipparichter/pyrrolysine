@@ -64,11 +64,11 @@ def run_prodigal(input_dir:str='../data/ncbi/genomes/', output_dir='../data/prod
         if not os.path.exists(output_path):
             subprocess.run(f'prodigal -i {path} -a {output_path}', shell=True, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
-def run_hmmer(input_dir:str='../data/prodigal/', query_path='../data/query.hmm', output_dir:str='../data/hmmer'):
+def run_hmmer(input_dir:str='../data/prodigal/', query_path='../data/hmms/query.hmm', output_dir:str='../data/hmmer', overwrite:bool=False):
     for path in tqdm(glob.glob(os.path.join(input_dir, '*')), 'run_hmmer'):
-        output_path = re.sub('.fa|.faa', '.fa', os.path.basename(path))
+        output_path = re.sub('.fa|.faa', '.tab', os.path.basename(path))
         output_path = os.path.join(output_dir, output_path)
-        if not os.path.exists(output_path):
+        if not os.path.exists(output_path) or overwrite:
             try:
                 subprocess.run(f'hmmsearch --domtblout {output_path} {query_path} {path}', shell=True, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             except:
