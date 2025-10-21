@@ -30,7 +30,7 @@ orange = '#fdae6b'
 
 def plot_residue_counts(figure_df:pd.DataFrame, position:int=None, palette=None, ax=None, hue:str=None, stat:str='probability'):
     ax_df = figure_df[[hue, position]].copy()
-    sns.histplot(ax_df, x=position, hue=hue, multiple='dodge', ax=ax, palette=palette, stat=stat, common_norm=False)
+    sns.histplot(ax_df, x=position, hue=hue, multiple='dodge', ax=ax, palette=palette, stat=stat, common_norm=False, shrink=0.8)
     ax.set_ylabel(stat)
     ax.get_legend().set_title('')
     ax.set_xlabel('')
@@ -91,8 +91,6 @@ def make_chimerax_attribute_file(positions:list, scores:list, path:str='../data/
 
     with open(path, 'w') as f:
         f.write(''.join(content))
-
-
 
 
 def get_split_figure(bottom_range:tuple, top_range:tuple):

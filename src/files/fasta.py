@@ -17,10 +17,7 @@ def parse_prodigal_description(description:str):
     parsed_header['rbs_motif'] = 'none' if (parsed_header['rbs_motif'] == 'None') else parsed_header['rbs_motif']
     return parsed_header 
 
-
-# def parser_default(description:str):
-#     return {'description':description}
-
+get_contig_id = lambda id_ :  '_'.join(id_.split('_')[:-1])
 
 class FASTAFile():
     # prodigal_dtypes = {'start':int, 'stop':int, 'strand':int, 'gc_content':float, 'rbs_motif':str, 'rbs_spacer':str}
@@ -53,6 +50,11 @@ class FASTAFile():
             obj.descriptions.append(record.description.replace(record.id, '').strip())
             obj.seqs.append(str(record.seq))
         f.close()
+
+        obj.seqs = np.array(obj.seqs)
+        obj.ids = np.array(obj.ids)
+
+        # assert len(obj.seqs) == len(np.unique(obj.seqs)), f'FASTAFile.from_fasta: Some of the sequence IDs in {path} are not unique.'
         return obj 
     
     def get_type(self):
@@ -83,9 +85,13 @@ class FASTAFile():
             row['seq'] = seq
             if parse_description:
                 row.update(parse_prodigal_description(description))
+                row['contig_id'] = get_contig_id(id_) # Extract contig ID. 
+                row['start'], row['stop'], row['strand'] = int(row['start']), int(row['stop']), int(row['strand'])
             df.append(row)
             
         df = pd.DataFrame(df).set_index('id')
+
+
         return df
 
     def write(self, path:str, mode:str='w') -> NoReturn:
