@@ -62,7 +62,8 @@ def get_entropies(alignment_df):
     symbols = get_most_common_symbols(f, order=1) 
 
     # Compute the entropy for each alignment column, which corresponds to a row in the frequency matrix. 
-    get_entropy = lambda col : 0 if (np.count_nonzero(col) == 1) else sum(-np.log(col[col != 0]) / np.log(np.count_nonzero(col)) * col[col != 0])
+    # get_entropy = lambda col : 0 if (np.count_nonzero(col) == 1) else sum(-np.log(col[col != 0]) / np.log(np.count_nonzero(col)) * col[col != 0])
+    get_entropy = lambda col : 0 if (np.count_nonzero(col) == 1) else sum(-np.log(col[col != 0]) / np.log(20) * col[col != 0])
     entropies = [get_entropy(col) for col in f] 
     return entropies, symbols 
 

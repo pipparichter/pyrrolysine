@@ -7,6 +7,7 @@ import os
 from src.files.fasta import FASTAFile
 import re 
 import seaborn as sns
+import src.files.fasta as fasta
 
 
 
@@ -26,6 +27,19 @@ orange = '#fdae6b'
 
 # An example aRF1 sequence which has all the domains. 
 # arf1_seq = 'MTEQSAHQRYEFKKKLESLRDKKGRSTELITLYIPLDKQIYDVTNQLKEEHGQAANIKSKLTRTNVQGAIESLLSRLRYLKVPENGIVYFTGAVDIGANKTNMESEVIIPPEPITAYKYHCNSTFYLEPLEDMLKDKNTFGLLVLDRREATVGLLVGKRIQAFRHLTSTVPGKQRKGGQSAHRFQQLRLIAIHDFYKRIGDAASEIFLAIDHKDLKGVLIGGPSPTKEEFYAGEFLHHELQRKIIGLFDISYTDESGLPELLNAAGEKLQGLELMGQKNAVKAFFKELISDSGKVAYGETQVRANLEINAVEMLLLSEDLRAERVTTKCSVCGYENKWTRRWKPGESAPTAGNCPECGSSIDVTDVTDIVDELSALADKSNAKVTFVSTDFDEGSQLMNAFGGIAAILRYNTGV'
+
+
+def parse_prodigal_description(df:pd.DataFrame):
+    n = len(df)
+    assert 'description' in df.columns, 'parse_prodigal_description: No description column to parse.'
+    df_ = pd.DataFrame([fasta._parse_prodigal_description(description) for description in df.description], index=df.index)
+    df_['start'] = df_.start.astype(int)
+    df_['stop'] = df_.stop.astype(int)
+    df_['strand'] = df_.strand.astype(int)
+    df_['contig_id'] = [fasta.get_contig_id(id_) for id_ in df_.index]
+    df = df.drop(columns=df_.columns, errors='ignore').merge(df_, left_index=True, right_index=True)
+    assert len(df) == n, 'parse_prodigal_description: Something went wrong while merging the DataFrames.'
+    return df
 
 
 def plot_residue_counts(figure_df:pd.DataFrame, position:int=None, palette=None, ax=None, hue:str=None, stat:str='probability'):

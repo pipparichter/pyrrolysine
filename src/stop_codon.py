@@ -1,4 +1,4 @@
-from src.files.fasta import FASTAFile, parse_prodigal_description, get_contig_id
+from src.files.fasta import FASTAFile, _parse_prodigal_description, get_contig_id
 import pandas as pd 
 import numpy as np 
 from Bio.Seq import Seq
@@ -83,7 +83,7 @@ def build_stop_codon_genome_metadata_dataset(genome_ids:list, fn_dir:str='../dta
 
 def build_stop_codon_dataset(df:pd.DataFrame, fn_dir:str='../data/ncbi/genomes', path:str=None):
     
-    fa_df = pd.DataFrame([parse_prodigal_description(description) for description in df.description])
+    fa_df = pd.DataFrame([_parse_prodigal_description(description) for description in df.description])
     fa_df['contig_id'] = [get_contig_id(id_) for id_ in df.index]
     fa_df['fn_path'] = [os.path.join(fn_dir, f'{genome_id}.fn') for genome_id in df.genome_id]
     fa_df['start'], fa_df['stop'], fa_df['strand'] = fa_df['start'].astype(int), fa_df['stop'].astype(int), fa_df['strand'].astype(int)

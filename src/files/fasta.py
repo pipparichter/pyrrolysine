@@ -9,7 +9,7 @@ import pandas as pd
 import numpy as np 
 
 
-def parse_prodigal_description(description:str):
+def _parse_prodigal_description(description:str):
     pattern = r'# ([\d]+) # ([\d]+) # ([-1]+) # ID=([^;]+);partial=([^;]+);start_type=([^;]+);rbs_motif=([^;]+);rbs_spacer=([^;]+);gc_cont=([\.\w]+)'
     columns = ['start', 'stop', 'strand', 'ID', 'partial', 'start_type', 'rbs_motif', 'rbs_spacer', 'gc_content']
     match = re.search(pattern, description)
@@ -84,7 +84,7 @@ class FASTAFile():
             row['id'] = id_
             row['seq'] = seq
             if parse_description:
-                row.update(parse_prodigal_description(description))
+                row.update(_parse_prodigal_description(description))
                 row['contig_id'] = get_contig_id(id_) # Extract contig ID. 
                 row['start'], row['stop'], row['strand'] = int(row['start']), int(row['stop']), int(row['strand'])
             df.append(row)
