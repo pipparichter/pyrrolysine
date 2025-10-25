@@ -64,20 +64,19 @@ def _get_stop_codon_genome_metadata_info(fa_path:str=None, fn_path:str=None):
     return info
 
 
-def build_stop_codon_genome_metadata_dataset(genome_ids:list, fn_dir:str='../dta/ncbi/genomes', fa_dir:str='../data/prodigal', path:str='../data/stop_codon_genome_metadata.csv'):
+def build_stop_codon_genome_metadata_dataset(genome_ids:list, fn_dir:str='../dta/ncbi/genomes', fa_dir:str='../data/prodigal', path:str=None):
     
-    if not os.path.exists(path):
-        stop_codon_df = list() 
-        for genome_id in tqdm(genome_ids, 'build_stop_codon_dataset'):
-            row = {'genome_id':genome_id}
-            fn_path = os.path.join(fn_dir, f'{genome_id}.fn')
-            fa_path = os.path.join(fa_dir, f'{genome_id}.fa')
-            row.update(_get_stop_codon_genome_metadata_info(fn_path=fn_path, fa_path=fa_path))
-            stop_codon_df.append(row)
+    stop_codon_df = list() 
+    for genome_id in tqdm(genome_ids, 'build_stop_codon_dataset'):
+        row = {'genome_id':genome_id}
+        fn_path = os.path.join(fn_dir, f'{genome_id}.fn')
+        fa_path = os.path.join(fa_dir, f'{genome_id}.fa')
+        row.update(_get_stop_codon_genome_metadata_info(fn_path=fn_path, fa_path=fa_path))
+        stop_codon_df.append(row)
 
-        stop_codon_df = pd.concat(stop_codon_df)
-        stop_codon_df['total'] = stop_codon_df.TAG + stop_codon_df.TAA + stop_codon_df.TGA 
-        stop_codon_df.to_csv(path)
+    stop_codon_df = pd.concat(stop_codon_df)
+    stop_codon_df['total'] = stop_codon_df.TAG + stop_codon_df.TAA + stop_codon_df.TGA 
+    stop_codon_df.to_csv(path)
 
 
 

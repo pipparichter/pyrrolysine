@@ -19,6 +19,9 @@ def _parse_prodigal_description(description:str):
 
 get_contig_id = lambda id_ :  '_'.join(id_.split('_')[:-1])
 
+get_reverse_complement = lambda seq : str(Seq(seq).reverse_complement())
+
+
 class FASTAFile():
     # prodigal_dtypes = {'start':int, 'stop':int, 'strand':int, 'gc_content':float, 'rbs_motif':str, 'rbs_spacer':str}
 
@@ -64,6 +67,16 @@ class FASTAFile():
             return 'nt'
         else:
             return 'aa'
+        
+    def get_seq(self, id_:str, start:int=0, stop:int=None):
+        assert id_ in self.ids, f'FASTAFile.get_seq: Sequence {id_} is not present.'
+
+        seq = self.seqs[self.ids == id_][0]
+        stop = len(seq) if (stop is None) else stop
+        assert len(seq) >= stop, f'FASTAFile.get_seq: Specified stop {stop} is out of bounds for sequence of length {len(seq)}.' # Prevents an out-of-bound slice from failing silently.
+
+        return seq[start:stop]
+    
         
     def get_gc_content(self, exclude_unknown:bool=False, check:bool=False):
         if check:
