@@ -111,7 +111,7 @@ class FASTAFile():
         f = open(path, mode=mode)
         records = []
         for id_, seq, description in zip(self.ids, self.seqs, self.descriptions):
-            record = SeqRecord(Seq(seq), id=id_, description=description)
+            record = SeqRecord(Seq(seq), id=str(id_), description=description)
             records.append(record)
         SeqIO.write(records, f, 'fasta')
         f.close()

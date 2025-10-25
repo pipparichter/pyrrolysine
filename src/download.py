@@ -57,10 +57,11 @@ def extract_genomes(data_dir:str='../data/ncbi'):
 patterns = dict()
 patterns['id'] = r'<Id>(\d+)</Id>'
 patterns['coordinates'] = r'<GBQualifier_name>coded_by</GBQualifier_name>\s+<GBQualifier_value>(.+)</GBQualifier_value>' # From a protein fetch result. 
-patterns['get_taxonomy'] = r'<GBSeq_taxonomy>(.+)</GBSeq_taxonomy>' # From a nuccore fetch result.
+patterns['taxonomy'] = r'<GBSeq_taxonomy>(.+)</GBSeq_taxonomy>' # From a nuccore fetch result.
 patterns['organism'] = r'<GBSeq_organism>(.+)</GBSeq_organism>' # From a nuccore fetch result. 
 patterns['nuccore_id'] = r'<GBSeq_source-db>accession (.+)</GBSeq_source-db' # From a protein fetch result. 
 patterns['assembly_id'] = r'<AssemblyAccession>(.+)</AssemblyAccession>' # From a protein fetch result. 
+patterns['seq'] = r'<GBSeq_sequence>(.+)</GBSeq_sequence>'
 
 def parse_entrez(result, pattern=None, multiple:bool=False, flags=re.DOTALL):
     matches = [match.group(1) for match in re.finditer(patterns[pattern], result, flags=flags)]
@@ -94,6 +95,11 @@ def download_protein_info(protein_id):
     info['taxonomy'] = parse_entrez(result, pattern='taxonomy')
 
     return info
+
+def download_protein(protein_id:str):
+    
+    result = Entrez.efetch(db='protein', id=protein_id, rettype='html').read().decode('utf-8')
+    return parse_entrez(result, 'seq')
 
 
 def download_nr_protein_info(protein_id):

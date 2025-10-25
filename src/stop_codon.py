@@ -74,7 +74,7 @@ def build_stop_codon_genome_metadata_dataset(genome_ids:list, fn_dir:str='../dta
         row.update(_get_stop_codon_genome_metadata_info(fn_path=fn_path, fa_path=fa_path))
         stop_codon_df.append(row)
 
-    stop_codon_df = pd.concat(stop_codon_df)
+    stop_codon_df = pd.DataFrame(stop_codon_df).set_index('genome_id')
     stop_codon_df['total'] = stop_codon_df.TAG + stop_codon_df.TAA + stop_codon_df.TGA 
     stop_codon_df.to_csv(path)
 
@@ -93,7 +93,10 @@ def build_stop_codon_dataset(df:pd.DataFrame, fn_dir:str='../data/ncbi/genomes',
 
     fa_df = fa_df.drop(columns=df.columns, errors='ignore')
     stop_codon_df = df.merge(fa_df, left_index=True, right_index=True)
-    stop_codon_df.to_csv(path)
+
+    if path is not None:
+        stop_codon_df.to_csv(path)
+    return stop_codon_df
 
 
 

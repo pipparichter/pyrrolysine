@@ -61,8 +61,11 @@ def run_prodigal(input_dir:str='../data/ncbi/genomes/', output_dir='../data/prod
     for path in tqdm(glob.glob(os.path.join(input_dir, '*')), 'run_prodigal'):
         output_path = re.sub('.fn|.fna', '.fa', os.path.basename(path))
         output_path = os.path.join(output_dir, output_path)
-        if not os.path.exists(output_path):
-            subprocess.run(f'prodigal -i {path} -a {output_path}', shell=True, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        try:
+            if not os.path.exists(output_path):
+                subprocess.run(f'prodigal -i {path} -a {output_path}', shell=True, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except:
+            print(f'run_prodigal: Could not run Prodigal on {path}')
 
 def run_hmmer(input_dir:str='../data/prodigal/', query_path='../data/hmms/query.hmm', output_dir:str='../data/hmmer', overwrite:bool=False):
     for path in tqdm(glob.glob(os.path.join(input_dir, '*')), 'run_hmmer'):

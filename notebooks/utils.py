@@ -174,9 +174,16 @@ def _hmmer_load(path:str):
 
 
 # ['aRF1_eRF1', 'pelota', 'pyrrolys_PylC', 'pyrrolys_PylB', 'pyrrolys_PylD', 'PylS_Nterm']
-def hmmer_load(data_dir='../data/hmmer', max_e_values:dict=dict(), query_names:list=['aRF1_eRF1', 'pelota', 'pyrrolys_PylC', 'pyrrolys_PylB', 'pyrrolys_PylD', 'PylS_Nterm', 'PylS_Cterm'], best_hit_only:bool=True):
+def hmmer_load(data_dir='../data/hmmer', max_e_values:dict=dict(), genome_ids:list=None, query_names:list=['aRF1_eRF1', 'pelota', 'pyrrolys_PylC', 'pyrrolys_PylB', 'pyrrolys_PylD', 'PylS_Nterm', 'PylS_Cterm'], best_hit_only:bool=True):
     hmmer_df = list()
-    for path in tqdm(glob.glob(os.path.join(data_dir, '*')), desc='hmmer_load'):
+
+    paths = np.array(glob.glob(os.path.join(data_dir, '*')))
+    
+    if genome_ids is not None:
+        path_genome_ids = np.array([os.path.basename(path).replace('.tab', '') for path in paths])
+        paths = paths[np.isin(path_genome_ids, genome_ids)].copy()
+
+    for path in tqdm(paths, desc='hmmer_load'):
         genome_id = os.path.basename(path).replace('.tab', '')
 
         try:
