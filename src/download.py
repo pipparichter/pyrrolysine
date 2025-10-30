@@ -56,7 +56,7 @@ def extract_genomes(data_dir:str='../data/ncbi'):
 
 patterns = dict()
 patterns['id'] = r'<Id>(\d+)</Id>'
-patterns['coordinates'] = r'<GBQualifier_name>coded_by</GBQualifier_name>\s+<GBQualifier_value>(.+)</GBQualifier_value>' # From a protein fetch result. 
+patterns['coordinates'] = r'<GBQualifier_name>coded_by</GBQualifier_name>\s+<GBQualifier_value>(.+?)</GBQualifier_value>' # From a protein fetch result. 
 patterns['taxonomy'] = r'<GBSeq_taxonomy>(.+)</GBSeq_taxonomy>' # From a nuccore fetch result.
 patterns['organism'] = r'<GBSeq_organism>(.+)</GBSeq_organism>' # From a nuccore fetch result. 
 patterns['nuccore_id'] = r'<GBSeq_source-db>accession (.+)</GBSeq_source-db' # From a protein fetch result. 
@@ -77,29 +77,36 @@ def download_nuccore(nuccore_id:str, fn_dir=None):
     return fn_path
 
 
-def download_protein_info(protein_id):
+def download_protein_info(protein_id, include_sequence:bool=True):
     # TODO: The non-redundant protein sequences need to be handled differently.  
     info = {'id':protein_id}
     
     result = Entrez.efetch(db='protein', id=protein_id, rettype='html').read().decode('utf-8')
-    nuccore_id = parse_entrez(result, pattern='nuccore_id')
-    if nuccore_id == 'none':
-        return info
-
-    info['coordinates'] = parse_entrez(result, pattern='coordinates', flags=re.MULTILINE|re.DOTALL)
-    info['nuccore_id'] = nuccore_id
-
-    result = Entrez.efetch(db='nuccore', id=nuccore_id, rettype='html').read().decode('utf-8')
-
     info['organism'] = parse_entrez(result, pattern='organism')
     info['taxonomy'] = parse_entrez(result, pattern='taxonomy')
+    if include_sequence:
+        seq = parse_entrez(result, pattern='seq') 
+        seq = seq.upper() if (seq != 'none') else seq
+        info['seq'] = seq        
 
+    nuccore_id = parse_entrez(result, pattern='nuccore_id')
+    if nuccore_id != 'none':
+        info['coordinates'] = parse_entrez(result, pattern='coordinates', flags=re.MULTILINE|re.DOTALL)
+        info['nuccore_id'] = nuccore_id
+
+    #  result = Entrez.efetch(db='nuccore', id=nuccore_id, rettype='html').read().decode('utf-8')
     return info
 
-def download_protein(protein_id:str):
+
+# def download_nr_protein_id(protein_id:str):
+
+#     result = Entrez.efetch(dbfrom='protein', db='ipg', id=protein_id, rettype='html').read().decode('utf-8')
+#     print(result)
     
-    result = Entrez.efetch(db='protein', id=protein_id, rettype='html').read().decode('utf-8')
-    return parse_entrez(result, 'seq')
+
+# def download_protein(protein_id:str): 
+#     result = Entrez.efetch(db='protein', id=protein_id, rettype='html').read().decode('utf-8')
+#     return parse_entrez(result, 'seq')
 
 
 def download_nr_protein_info(protein_id):

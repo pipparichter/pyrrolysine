@@ -8,6 +8,9 @@ from src.files.fasta import FASTAFile
 import re 
 import seaborn as sns
 import src.files.fasta as fasta
+import subprocess
+from Bio import Phylo
+import io
 
 
 
@@ -24,9 +27,61 @@ lightgreen = '#74c476'
 darkgreen = '#31a354'
 red = '#e6550d'
 orange = '#fdae6b'
+black= '#000000'
 
 # An example aRF1 sequence which has all the domains. 
 # arf1_seq = 'MTEQSAHQRYEFKKKLESLRDKKGRSTELITLYIPLDKQIYDVTNQLKEEHGQAANIKSKLTRTNVQGAIESLLSRLRYLKVPENGIVYFTGAVDIGANKTNMESEVIIPPEPITAYKYHCNSTFYLEPLEDMLKDKNTFGLLVLDRREATVGLLVGKRIQAFRHLTSTVPGKQRKGGQSAHRFQQLRLIAIHDFYKRIGDAASEIFLAIDHKDLKGVLIGGPSPTKEEFYAGEFLHHELQRKIIGLFDISYTDESGLPELLNAAGEKLQGLELMGQKNAVKAFFKELISDSGKVAYGETQVRANLEINAVEMLLLSEDLRAERVTTKCSVCGYENKWTRRWKPGESAPTAGNCPECGSSIDVTDVTDIVDELSALADKSNAKVTFVSTDFDEGSQLMNAFGGIAAILRYNTGV'
+
+def run_muscle(input_path:str, build_tree:bool=False):
+    muscle_output_path = re.sub(r'\.fa.*', '.afa', input_path) # input_path.replace('.fa', '.afa').replace('.fasta', '.afa')
+    print(f'run_muscle: Generating file {muscle_output_path}')
+    trimal_output_path = re.sub(r'\.fa.*', '_trimmed.afa', input_path)
+    if not os.path.exists(muscle_output_path):
+        subprocess.run(f'~/muscle5.1.linux_intel64 -align {input_path} -output {muscle_output_path}', shell=True, check=True)
+    subprocess.run(f'trimal -in {muscle_output_path} -out {trimal_output_path}', shell=True, check=True)
+
+    if build_tree:
+        tree_path = muscle_output_path.replace('.afa', '')
+        # subprocess.run(f'fasttree {muscle_output_path} > {tree_path}', shell=True, check=True)
+        # Use the trimmed output!
+        subprocess.run(f'iqtree -s {trimal_output_path} -m MFP -bb 1000 -alrt 1000 -nt AUTO -pre {tree_path}', shell=True, check=True)
+
+
+def get_tree_subset(tree, ids:list=[]):
+
+    for leaf in tree.get_terminals():
+        if leaf.name not in ids:
+            tree.prune(leaf)
+
+    nodes = [tree.find_any(id_) for id_ in ids]
+    tree = tree.common_ancestor(nodes)
+
+    return tree 
+
+
+def load_ar53_tree(path:str='../data/ar53.tree', genome_ids:list=None):
+    with open(path, 'r') as f:
+        tree = f.read()
+
+    tree = tree.replace('RS_', '').replace('GB_', '') # Remove the prefixes to allow mapping. 
+    tree = Phylo.read(io.StringIO(tree), format='newick')
+    if genome_ids is not None:
+        tree = get_tree_subset(tree, ids=genome_ids)
+    return tree 
+
+
+def plot_scores_1d(scores:np.ndarray, start=0, stop=150, y_label:str='', ax:plt.Axes=None, color:str='steelblue'):
+    scores = scores[start:stop]
+    sns.lineplot(x=np.arange(len(scores)), y=scores, ax=ax, color=color)
+    ax.set_xticks(np.arange(len(scores)), labels=np.arange(start, stop), fontsize='x-small')
+    ax.set_xlim(xmin=start, xmax=stop)
+    ax.set_ylabel(y_label)
+
+# def plot_scores_2d(scores:np.ndarray, start=0, stop=150, ax:plt.Axes=None):
+#     cmap = matplotlib.colors.LinearSegmentedColormap.from_list('palette', ['white', 'steelblue'])
+#     plt.imshow(scores[start:stop, start:stop], cmap=cmap)
+#     ax.set_yticks(np.arange(stop - start), labels=np.arange(start, stop), fontsize='x-small')
+#     ax.set_xticks(np.arange(start, stop), labels=np.arange(start, stop), fontsize='x-small')
 
 
 def parse_prodigal_description(df:pd.DataFrame):
