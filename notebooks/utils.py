@@ -11,7 +11,7 @@ import src.files.fasta as fasta
 import subprocess
 from Bio import Phylo
 import io
-
+from src.tree import *
 
 
 # ['#3182bd', '#6baed6', '#9ecae1', '#c6dbef',
@@ -19,6 +19,8 @@ import io
 # '#31a354', '#74c476', '#a1d99b', '#c7e9c0',
 # '#756bb1', '#9e9ac8', '#bcbddc', '#dadaeb',
 # '#636363', '#969696', '#bdbdbd', '#d9d9d9']
+
+GTDB_DATA_DIR = '../data/gtdb/'
 
 darkblue = '#3182bd'
 lightblue = '#6baed6'
@@ -29,8 +31,73 @@ red = '#e6550d'
 orange = '#fdae6b'
 black= '#000000'
 
-# An example aRF1 sequence which has all the domains. 
-# arf1_seq = 'MTEQSAHQRYEFKKKLESLRDKKGRSTELITLYIPLDKQIYDVTNQLKEEHGQAANIKSKLTRTNVQGAIESLLSRLRYLKVPENGIVYFTGAVDIGANKTNMESEVIIPPEPITAYKYHCNSTFYLEPLEDMLKDKNTFGLLVLDRREATVGLLVGKRIQAFRHLTSTVPGKQRKGGQSAHRFQQLRLIAIHDFYKRIGDAASEIFLAIDHKDLKGVLIGGPSPTKEEFYAGEFLHHELQRKIIGLFDISYTDESGLPELLNAAGEKLQGLELMGQKNAVKAFFKELISDSGKVAYGETQVRANLEINAVEMLLLSEDLRAERVTTKCSVCGYENKWTRRWKPGESAPTAGNCPECGSSIDVTDVTDIVDELSALADKSNAKVTFVSTDFDEGSQLMNAFGGIAAILRYNTGV'
+
+gtdb_get_genus = lambda taxonomy : re.search('g__([^;]+)', taxonomy).group(1) if (re.search('g__([^;]+)', taxonomy) is not None) else 'none'
+gtdb_get_species = lambda taxonomy : re.search('s__([^;]+)', taxonomy).group(1) if (re.search('s__([^;]+)', taxonomy) is not None) else 'none'
+gtdb_get_order = lambda taxonomy : re.search('o__([^;]+)', taxonomy).group(1) if (re.search('o__([^;]+)', taxonomy) is not None) else 'none'
+gtdb_get_phylum = lambda taxonomy : re.search('p__([^;]+)', taxonomy).group(1) if (re.search('p__([^;]+)', taxonomy) is not None) else 'none'
+gtdb_get_family = lambda taxonomy : re.search('f__([^;]+)', taxonomy).group(1) if (re.search('f__([^;]+)', taxonomy) is not None) else 'none'
+gtdb_get_class = lambda taxonomy : re.search('c__([^;]+)', taxonomy).group(1) if (re.search('c__([^;]+)', taxonomy) is not None) else 'none'
+
+
+def gtdb_load_ar53_metadata(data_dir:str=GTDB_DATA_DIR):
+    gtdb_metadata_df = pd.read_csv(os.path.join(data_dir, 'ar53_metadata_r226.tsv'), sep='\t')
+    gtdb_metadata_df.accession = [genome_id.replace('RS_','').replace('GB_', '') for genome_id in gtdb_metadata_df.accession]
+    gtdb_metadata_df['genus'] = gtdb_metadata_df.gtdb_taxonomy.apply(gtdb_get_genus)
+    gtdb_metadata_df['order'] = gtdb_metadata_df.gtdb_taxonomy.apply(gtdb_get_order)
+    gtdb_metadata_df['species'] = gtdb_metadata_df.gtdb_taxonomy.apply(gtdb_get_species)
+    gtdb_metadata_df['phylum'] = gtdb_metadata_df.gtdb_taxonomy.apply(gtdb_get_phylum)
+    gtdb_metadata_df['family'] = gtdb_metadata_df.gtdb_taxonomy.apply(gtdb_get_family)
+    gtdb_metadata_df['class'] = gtdb_metadata_df.gtdb_taxonomy.apply(gtdb_get_class)
+    gtdb_metadata_df = gtdb_metadata_df.set_index('accession')
+    return gtdb_metadata_df
+
+
+def gtdb_load_ar53_tree(data_dir:str=GTDB_DATA_DIR, genome_ids:list=None):
+    with open(os.path.join(data_dir, 'ar53.tree'), 'r') as f:
+        tree = f.read()
+    tree = tree.replace('RS_', '').replace('GB_', '') # Remove the prefixes to allow mapping. 
+    tree = Phylo.read(io.StringIO(tree), format='newick')
+    if genome_ids is not None:
+        tree = tree_subset(tree, ids=genome_ids)
+    return tree 
+
+
+def load_arf1_dataset(path:str='../data/arf1_cleaned.csv', stop_codon_metadata_path:str='../data/arf1_stop_codon_metadata.csv', exclude_genome_ids=[]):
+
+    gtdb_metadata_df = gtdb_load_ar53_metadata()
+    gtdb_metadata_df['genome_id'] = gtdb_metadata_df.index
+
+    arf1_df = pd.read_csv(path, index_col=0).drop(columns=['genus', 'order', 'Unnamed: 0'])
+    index = arf1_df.index
+    arf1_df = arf1_df.merge(gtdb_metadata_df, left_on='genome_id', right_on='genome_id', how='left')
+    arf1_df.index = index # Restore the index after the merge. 
+
+    # Exclude the specified genome IDs, probably the Methanosarcina species that lost Pyl. 
+    arf1_df = arf1_df[~arf1_df.genome_id.isin(exclude_genome_ids)].copy()
+
+    # Add stop codon information to the data.
+    stop_codon_metadata_df = pd.read_csv(stop_codon_metadata_path, index_col=0)
+    arf1_df['tag_count'] = arf1_df.genome_id.map(stop_codon_metadata_df.groupby('genome_id').TAG.first())
+    arf1_df['stop_codon_count'] = arf1_df.genome_id.map(stop_codon_metadata_df.groupby('genome_id')['total'].first())
+    arf1_df['tag_percent'] = arf1_df.tag_count / arf1_df.stop_codon_count
+
+    # I think more granular categories could be helpful:
+    # (1) Pyl+ and largely re-coded (TAG < 5%)
+    # (2) Pyl+ which still use lots of TAG stops (TAG > 5%) 
+    # (3) Pyl- (including the weird outliers
+
+    masks = dict()
+    masks['pyl+ recoded'] = (arf1_df.tag_percent < 0.05) & (arf1_df.has_pyl)
+    masks['pyl+'] = (arf1_df.tag_percent >= 0.05) & (arf1_df.has_pyl)
+    masks['pyl-'] = (~arf1_df.has_pyl)
+
+    categories = list(masks.keys())
+    arf1_df['category'] = np.select([masks[category] for category in categories], categories, default='none')
+
+    return arf1_df
+
+
 
 def run_muscle(input_path:str, build_tree:bool=False):
     muscle_output_path = re.sub(r'\.fa.*', '.afa', input_path) # input_path.replace('.fa', '.afa').replace('.fasta', '.afa')
@@ -45,10 +112,6 @@ def run_muscle(input_path:str, build_tree:bool=False):
         # subprocess.run(f'fasttree {muscle_output_path} > {tree_path}', shell=True, check=True)
         # Use the trimmed output!
         subprocess.run(f'iqtree -s {trimal_output_path} -m MFP -bb 1000 -alrt 1000 -nt AUTO -pre {tree_path}', shell=True, check=True)
-
-
-
-
 
 
 def plot_scores_1d(scores:np.ndarray, start=0, stop=150, y_label:str='', ax:plt.Axes=None, color:str='steelblue'):
@@ -110,25 +173,17 @@ hp = {'A':'H','V':'H','L':'H','I':'H','P':'H','F':'H','W':'H','M':'H','Y':'H','G
 ba = {'K':'B','R':'B','H':'B','D':'A','E':'A','A':'N','C':'N','F':'N','G':'N','I':'N','L':'N','M':'N','N':'N','P':'N','Q':'N','S':'N','T':'N','V':'N','W':'N','Y':'N'}
 
 
-def load_msa(path, ids:list=None, conservation_threshold:float=0.8, positions=None, return_positions:bool=False):
+def load_msa(path, ids:list=None, conservation_threshold:float=0.8):
     is_conserved = lambda col : (col != '-').astype(int).mean() > conservation_threshold # Flag conserved positions as those where at least 80 percent of the sequences do not have a gap. 
 
-    msa_df = FASTAFile().from_fasta(path).to_df()
+    alignment_df = FASTAFile().from_fasta(path).to_df()
     if ids is not None:
-        msa_df = msa_df.loc[ids].copy()
-    msa_arr = np.array([list(seq) for seq in msa_df.seq])
+        alignment_df = alignment_df.loc[ids].copy()
+    alignment = np.array([list(seq) for seq in alignment_df.seq])
+    positions = np.where([is_conserved(col) for col in alignment.T])[0]
+    alignment = alignment[:, positions].copy() # Ignore the extra junk in the alignment.
+    return pd.DataFrame(alignment, index=ids)
 
-    if positions is None:
-        positions = np.where([is_conserved(col) for col in msa_arr.T])[0]
-
-    # print('load_msa: Num. conserved positions:', len(positions))
-    # print('load_msa: Num. aligned sequences:', len(msa_arr))
-    msa_arr = msa_arr[:, positions].copy() # Ignore the extra junk in the alignment.
-
-    if return_positions:
-        return msa_df.index.values, np.array(msa_arr), positions
-    else:
-        return msa_df.index.values, np.array(msa_arr)
 
 
 def make_chimerax_attribute_file(positions:list, scores:list, path:str='../data/alphafold/arf1_alphafold_attributes.defattr'):
@@ -234,3 +289,52 @@ def hmmer_load(data_dir='../data/hmmer', max_e_values:dict=dict(), genome_ids:li
             print(f'hmmer_load: Failed to load HMMer results for {path}.') # Fails on GCA_018302685.1, which has no hits for any HMM. 
 
     return pd.concat(hmmer_df)
+
+
+
+
+# genus_to_order_map = dict()
+# genus_to_order_map['Methanosarcina'] = 'Methanosarcinales'
+# genus_to_order_map['Methanolobus'] = 'Methanosarcinales'
+# genus_to_order_map['Methanohalobium'] = 'Methanosarcinales'
+# genus_to_order_map['Methanosalsum'] = 'Methanosarcinales'
+# genus_to_order_map['Methanomethylophilus'] = 'Methanomassiliicoccales'
+# genus_to_order_map['Methanohalophilus'] = 'Methanosarcinales'
+# genus_to_order_map['Methanococcoides'] = 'Methanosarcinales'
+# genus_to_order_map['Methanomethylovorans'] = 'Methanosarcinales'
+# genus_to_order_map['Methanomassiliicoccus_A'] = 'Methanomassiliicoccales'
+# genus_to_order_map['Methanomassiliicoccus'] = 'Methanomassiliicoccales'
+# genus_to_order_map['Methanoprimaticola'] = 'Methanomassiliicoccales'
+# genus_to_order_map['Methanoplasma'] = 'Methanomassiliicoccales'
+# genus_to_order_map['Methermicoccus'] = 'Methanosarcinales'
+# genus_to_order_map['Hecatella'] = 'Hecatellales'
+# genus_to_order_map['Methanosalsum'] = 'Methanosarcinales'
+# genus_to_order_map['none'] = 'none'
+
+
+# def load_kivenson_table_2_metadata(data_dir:str='../data'):
+#     taxa = ['Methanococcoides', 'Methanosarcina', 'Methanohalobium', 'Methanohalophilus', 'Methanimicrococcus', 'Methermicoccus']
+#     taxa += ['Methanolobus', 'Methanomethylovorans', 'Methanosalsum', 'Methanomicrobia', 'Methanonatronarchaeum', 'Methanohalarchaeum']
+#     taxa += ['MSBL_1_clade', 'Methanoplasma', 'Methanomethylophilus', 'Methanomassiliicoccus', 'Methanogranum', 'Thermoplasmatota']
+#     taxa += ['Hydrothermarchaeum', 'Borrarchaeum', 'Korarchaeota', 'Methylarchaceae', 'Hecatella', 'Bathyarchaeota']
+#     taxa = '|'.join(taxa)
+#     table_2_metadata_df = pd.read_csv(f'{data_dir}/kivenson_2023_table_2.csv', usecols=['Assembly Accession', 'Organism Name'])
+#     table_2_metadata_df = table_2_metadata_df.rename(columns={'Assembly Accession':'accession', 'Organism Name':'organism_name'})
+#     table_2_metadata_df = table_2_metadata_df.set_index('accession')
+#     table_2_metadata_df['genus'] = [re.search(taxa, name).group(0) if (re.search(taxa, name) is not None) else 'none' for name in table_2_metadata_df.organism_name]
+#     table_2_metadata_df['order'] = table_2_metadata_df.genus.map(genus_to_order_map)
+#     return table_2_metadata_df
+
+
+# def load_kivenson_table_5_metadata(data_dir:str='../data'):
+#     # For some reason, there are genome IDs in SI Table 5 which are not in the SI Table 2 list, so had to add them seperately. 
+#     table_5_metadata_df = pd.read_csv(f'{data_dir}/kivenson_2023_table_5.csv')
+#     table_5_metadata_df['accession'] = ['_'.join(file_name.split('_')[:2]) for file_name in table_5_metadata_df['Filename']]
+#     table_5_metadata_df = table_5_metadata_df.set_index('accession')
+#     table_5_metadata_df = table_5_metadata_df.drop(columns=['Euryarchaeota / Halobacteriota'])
+#     columns = {'Genus / taxonomy (from NCBI)':'ncbi_taxonomy', 'GTDB taxonomy':'gtdb_taxonomy', 'Genome':'genome', '%TAG':'tag_percent', 'Filename':'filename'}
+#     columns.update({f'Category {i}':f'category {i}' for i in range(1, 5)})
+#     table_5_metadata_df = table_5_metadata_df.rename(columns=columns)
+#     table_5_metadata_df['order'] = table_5_metadata_df.gtdb_taxonomy.apply(get_order)
+#     table_5_metadata_df['genus'] = table_5_metadata_df.gtdb_taxonomy.apply(get_genus)
+#     return table_5_metadata_df
