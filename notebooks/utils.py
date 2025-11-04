@@ -98,6 +98,30 @@ def load_arf1_dataset(path:str='../data/arf1_cleaned.csv', stop_codon_metadata_p
     return arf1_df
 
 
+LEGEND_KWARGS = dict()
+LEGEND_KWARGS['handletextpad'] = 0.5
+LEGEND_KWARGS['handlelength'] = 1
+LEGEND_KWARGS['labelspacing'] = 0.2
+LEGEND_KWARGS['borderpad'] = 0.4
+LEGEND_KWARGS['markerscale'] = 0.5
+LEGEND_KWARGS['loc'] = 'lower right'
+LEGEND_KWARGS['prop'] = {'size':6}
+
+def shrink_legend_barplot(ax, **kwargs):
+    legend = ax.get_legend()
+    handles, labels = legend.get_patches(), [label.get_text() for label in legend.get_texts()] 
+    kwargs_ = LEGEND_KWARGS.copy()
+    kwargs_.update(kwargs)
+    ax.legend(handles, labels, title='', **kwargs_)
+
+
+def shrink_legend_scatterplot(ax, **kwargs):
+    handles, labels = ax.get_legend_handles_labels()
+    kwargs_ = LEGEND_KWARGS.copy()
+    kwargs_.update(kwargs)
+    ax.legend(handles, labels, title='', **kwargs_)
+
+
 
 def run_muscle(input_path:str, build_tree:bool=False):
     muscle_output_path = re.sub(r'\.fa.*', '.afa', input_path) # input_path.replace('.fa', '.afa').replace('.fasta', '.afa')
@@ -156,6 +180,7 @@ def get_domain_boundaries(seq:str):
     patterns['YxCxxxF'] = 'Y.C'
     # patterns['GGQ'] = 'GGQ'
     patterns['GTS'] = 'GR.'
+    patterns['GGQ'] = 'GGQ'
 
     boundaries = dict()
     for domain, pattern in patterns.items():

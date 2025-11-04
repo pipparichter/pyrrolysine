@@ -36,6 +36,7 @@ def get_most_common_symbols(f:np.ndarray, order:int=1):
 def get_scores(alignment_df, order:int=1, group_by:str='has_pyl', normalize:bool=True):
 
     max_score = np.sqrt(2)
+    max_score = 2
 
     assert group_by in alignment_df.columns, f'get_scores: Specified grouping column, {group_by}, is not present.'
     groups = alignment_df[group_by].unique()
@@ -49,7 +50,7 @@ def get_scores(alignment_df, order:int=1, group_by:str='has_pyl', normalize:bool
         f_dict[group] = get_frequencies(alignment, order=order)
 
     # Comparing Euclidean distances between vectors. 
-    scores = np.linalg.norm(f_dict[groups[1]] - f_dict[groups[0]], axis=-1)
+    scores = np.linalg.norm(f_dict[groups[1]] - f_dict[groups[0]], axis=-1, ord=1)
     scores = scores / max_score if normalize else scores
     return scores
 
