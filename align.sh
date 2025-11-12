@@ -1,5 +1,5 @@
-DBNAME="arf1_cleanedDB"
-NAME="arf1_cleaned"
+DBNAME="arf1CleanedWithMethanosarcinaceae1DB"
+NAME="arf1_cleaned_with_methanosarcinaceae"
 
 rm ./data/mmseqs/databases/*
 rm ./data/mmseqs/*
@@ -12,4 +12,4 @@ mmseqs prefilter -s 7.5  ./data/mmseqs/databases/$DBNAME ./data/mmseqs/databases
 
 mmseqs align -a -e 100 --min-aln-len 10 --min-seq-id 0 ./data/mmseqs/databases/$DBNAME ./data/mmseqs/databases/$DBNAME ./data/mmseqs/databases/$DBNAME_prefilter ./data/mmseqs/$DBNAME_align
 
-mmseqs convertalis --search-type 1 --format-output "query,target,evalue,pident,bits,qseq,tseq,alnlen,qstart,qend,tstart,tend,mismatch,gapopen" ./data/mmseqs/databases/$DBNAME ./data/mmseqs/databases/$DBNAME ./data/mmseqs/$DBNAME_align ./${NAME}_align.tsv
+mmseqs convertalis --search-type 1 --format-output "query,target,evalue,pident,bits,qseq,tseq,alnlen,qstart,qend,tstart,tend,mismatch,gapopen" ./data/mmseqs/databases/$DBNAME ./data/mmseqs/databases/$DBNAME ./data/mmseqs/$DBNAME_align ./data/${NAME}_align.tsv

@@ -50,7 +50,7 @@ def _get_stop_codons_in_dataframe(fa_df:pd.DataFrame):
     return fa_df
 
 
-def _get_stop_codon_genome_metadata_info(fa_path:str=None, fn_path:str=None):
+def _get_stop_codon_metadata_info(fa_path:str=None, fn_path:str=None):
 
     fn_file = FASTAFile().from_fasta(fn_path) # Load in the FASTA nucleotide file. 
     fa_file = FASTAFile().from_fasta(fa_path) # Load in the Prodigal protein predictions. 
@@ -64,14 +64,14 @@ def _get_stop_codon_genome_metadata_info(fa_path:str=None, fn_path:str=None):
     return info
 
 
-def build_stop_codon_genome_metadata_dataset(genome_ids:list, fn_dir:str='../dta/ncbi/genomes', fa_dir:str='../data/prodigal', path:str=None):
+def build_stop_codon_metadata_dataset(genome_ids:list, fn_dir:str='../data/ncbi/genomes', fa_dir:str='../data/prodigal', path:str=None):
     
     stop_codon_df = list() 
     for genome_id in tqdm(genome_ids, 'build_stop_codon_dataset'):
         row = {'genome_id':genome_id}
         fn_path = os.path.join(fn_dir, f'{genome_id}.fn')
         fa_path = os.path.join(fa_dir, f'{genome_id}.fa')
-        row.update(_get_stop_codon_genome_metadata_info(fn_path=fn_path, fa_path=fa_path))
+        row.update(_get_stop_codon_metadata_info(fn_path=fn_path, fa_path=fa_path))
         stop_codon_df.append(row)
 
     stop_codon_df = pd.DataFrame(stop_codon_df).set_index('genome_id')

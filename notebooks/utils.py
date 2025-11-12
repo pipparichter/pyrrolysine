@@ -20,6 +20,14 @@ from src.tree import *
 # '#756bb1', '#9e9ac8', '#bcbddc', '#dadaeb',
 # '#636363', '#969696', '#bdbdbd', '#d9d9d9']
 
+def annotate_residues(annotations:dict, ax=None, lines_only:bool=False):
+    for seq, (start, stop) in annotations.items():
+        positions = np.arange(start, stop)
+        for x, aa in zip(positions, list(seq)):
+            if not lines_only:
+                ax.text(x, ax.get_ylim()[-1], aa, ha='center', va='bottom')
+            ax.axvline(x, ls='--', lw=0.5, color='gray')
+
 GTDB_DATA_DIR = '../data/gtdb/'
 
 darkblue = '#3182bd'
@@ -68,7 +76,7 @@ def load_arf1_dataset(path:str='../data/arf1_cleaned.csv', stop_codon_metadata_p
     gtdb_metadata_df = gtdb_load_ar53_metadata()
     gtdb_metadata_df['genome_id'] = gtdb_metadata_df.index
 
-    arf1_df = pd.read_csv(path, index_col=0).drop(columns=['genus', 'order', 'Unnamed: 0'])
+    arf1_df = pd.read_csv(path, index_col=0).drop(columns=['genus', 'order', 'Unnamed: 0'], errors='ignore')
     index = arf1_df.index
     arf1_df = arf1_df.merge(gtdb_metadata_df, left_on='genome_id', right_on='genome_id', how='left')
     arf1_df.index = index # Restore the index after the merge. 
@@ -82,18 +90,19 @@ def load_arf1_dataset(path:str='../data/arf1_cleaned.csv', stop_codon_metadata_p
     arf1_df['stop_codon_count'] = arf1_df.genome_id.map(stop_codon_metadata_df.groupby('genome_id')['total'].first())
     arf1_df['tag_percent'] = arf1_df.tag_count / arf1_df.stop_codon_count
 
-    # I think more granular categories could be helpful:
-    # (1) Pyl+ and largely re-coded (TAG < 5%)
-    # (2) Pyl+ which still use lots of TAG stops (TAG > 5%) 
-    # (3) Pyl- (including the weird outliers
+    if 'has_pyl' in arf1_df.columns:
+        # I think more granular categories could be helpful:
+        # (1) Pyl+ and largely re-coded (TAG < 5%)
+        # (2) Pyl+ which still use lots of TAG stops (TAG > 5%) 
+        # (3) Pyl- (including the weird outliers
 
-    masks = dict()
-    masks['pyl+ recoded'] = (arf1_df.tag_percent < 0.05) & (arf1_df.has_pyl)
-    masks['pyl+'] = (arf1_df.tag_percent >= 0.05) & (arf1_df.has_pyl)
-    masks['pyl-'] = (~arf1_df.has_pyl)
+        masks = dict()
+        masks['pyl+ recoded'] = (arf1_df.tag_percent < 0.05) & (arf1_df.has_pyl)
+        masks['pyl+'] = (arf1_df.tag_percent >= 0.05) & (arf1_df.has_pyl)
+        masks['pyl-'] = (~arf1_df.has_pyl)
 
-    categories = list(masks.keys())
-    arf1_df['category'] = np.select([masks[category] for category in categories], categories, default='none')
+        categories = list(masks.keys())
+        arf1_df['category'] = np.select([masks[category] for category in categories], categories, default='none')
 
     return arf1_df
 
@@ -123,19 +132,20 @@ def shrink_legend_scatterplot(ax, **kwargs):
 
 
 
-def run_muscle(input_path:str, build_tree:bool=False):
+def run_muscle(input_path:str):
     muscle_output_path = re.sub(r'\.fa.*', '.afa', input_path) # input_path.replace('.fa', '.afa').replace('.fasta', '.afa')
-    print(f'run_muscle: Generating file {muscle_output_path}')
     trimal_output_path = re.sub(r'\.fa.*', '_trimmed.afa', input_path)
     if not os.path.exists(muscle_output_path):
+        print(f'run_muscle: Generating file {muscle_output_path}')
         subprocess.run(f'~/muscle5.1.linux_intel64 -align {input_path} -output {muscle_output_path}', shell=True, check=True)
     subprocess.run(f'trimal -in {muscle_output_path} -out {trimal_output_path}', shell=True, check=True)
+    return trimal_output_path
 
-    if build_tree:
-        tree_path = muscle_output_path.replace('.afa', '')
-        # subprocess.run(f'fasttree {muscle_output_path} > {tree_path}', shell=True, check=True)
-        # Use the trimmed output!
-        subprocess.run(f'iqtree -s {trimal_output_path} -m MFP -bb 1000 -alrt 1000 -nt AUTO -pre {tree_path}', shell=True, check=True)
+    # if build_tree:
+    #     tree_path = muscle_output_path.replace('.afa', '')
+    #     # subprocess.run(f'fasttree {muscle_output_path} > {tree_path}', shell=True, check=True)
+    #     # Use the trimmed output!
+    #     subprocess.run(f'iqtree -s {trimal_output_path} -m MFP -bb 1000 -alrt 1000 -nt AUTO -pre {tree_path}', shell=True, check=True)
 
 
 def plot_scores_1d(scores:np.ndarray, start=0, stop=150, y_label:str='', ax:plt.Axes=None, color:str='steelblue'):
@@ -197,6 +207,13 @@ hp = {'A':'H','V':'H','L':'H','I':'H','P':'H','F':'H','W':'H','M':'H','Y':'H','G
 
 ba = {'K':'B','R':'B','H':'B','D':'A','E':'A','A':'N','C':'N','F':'N','G':'N','I':'N','L':'N','M':'N','N':'N','P':'N','Q':'N','S':'N','T':'N','V':'N','W':'N','Y':'N'}
 
+dayhoff_descriptions = dict()
+dayhoff_descriptions['A'] = 'small hydrophilic'
+dayhoff_descriptions['B'] = 'acidic amide'
+dayhoff_descriptions['C'] = 'basic'
+dayhoff_descriptions['D'] = 'hydrophobic aliphatic'
+dayhoff_descriptions['E'] = 'aromatic'
+dayhoff_descriptions['F'] = 'sulfur containing'
 
 def load_msa(path, ids:list=None, conservation_threshold:float=0.8):
     is_conserved = lambda col : (col != '-').astype(int).mean() > conservation_threshold # Flag conserved positions as those where at least 80 percent of the sequences do not have a gap. 

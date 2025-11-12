@@ -3,7 +3,7 @@ import os
 
 
 setuptools.setup(
-    name='pyrrolysine',
+    name='nayak',
     version='0.1',    
     description='N/A',
     url='https://github.com/pipparichter/pyrrolysine',

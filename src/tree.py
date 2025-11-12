@@ -11,9 +11,84 @@ import matplotlib.colors
 import numpy as np
 import pandas as pd 
 import re 
+from itertools import combinations
+
+def tree_get_distances(tree, query_ids=None, target_ids=None):
+    query_leaves = [tree.find_any(genome_id) for genome_id in query_ids]
+    if target_ids is not None:
+        target_leaves = [tree.find_any(genome_id) for genome_id in target_ids]
+        # leaf_pairs = [(query_leaf, target_leaf) for query_leaf in query_leaves for target_leaf in target_leaves]
+        leaf_pairs = list(zip(query_leaves, target_leaves)) # Compute pairwise distances. 
+        leaves = query_leaves + target_leaves
+    else:
+        leaves = query_leaves
+        leaf_pairs = list(combinations(query_leaves, 2))
+    print(f'tree_get_distances: Computing distances between {len(leaf_pairs)} pairs of leaves.')
+
+    # Precompute the distances to the roots. 
+    distances_to_root = {leaf:tree.distance(tree.root, leaf) for leaf in tqdm(leaves, desc='tree_get_distances: Precomputing distances to leaves.')}
+    distance_df = list()
+    
+    for query_leaf, target_leaf in tqdm(leaf_pairs, desc='tree_get_distances'): # Using combinations, so there should not be any duplicates or zeros. 
+    # for query_leaf, target_leaf in list(combinations(leaves, 2)): # Using combinations, so there should not be any duplicates or zeros. 
+        row = {'query_genome_id':query_leaf.name, 'target_genome_id':target_leaf.name}
+
+        lca = tree.common_ancestor(query_leaf, target_leaf) # Using the LCA to get distance is *much* faster (thanks ChatGPT)... should look into why. 
+        lca_distance_to_root = distances_to_root.get(lca, tree.distance(tree.root, lca)) # Only compute the distance if it's not already in the dictionary. 
+        distances_to_root[lca] = lca_distance_to_root # Store in the lookup table. 
+        row['distance'] = distances_to_root[query_leaf] + distances_to_root[target_leaf] - (2 * lca_distance_to_root) 
+        distance_df.append(row) # Only add if the distance is not too far. 
+
+    distance_df = pd.DataFrame(distance_df)
+    return distance_df
+
+# def _tree_get_distances_preprocess(df:pd.DataFrame):
+#     df = df.copy()
+#     df['protein_id'] = df.index 
+#     df = df.set_index('genome_id') # Need to use the genome ID as an index to work with the tree. 
+#     return df
+
+# def tree_get_distances(query_df, tree, target_df=None, max_distance=2.5):
+
+#     query_df = _tree_get_distances_preprocess(query_df)
+#     query_leaves = [tree.find_any(genome_id) for genome_id in query_df.index]
+
+#     if target_df is not None:
+#         target_df = _tree_get_distances_preprocess(target_df)
+#         target_leaves = [tree.find_any(genome_id) for genome_id in target_df.index]
+#         leaf_pairs = [(query_leaf, target_leaf) for query_leaf in query_leaves for target_leaf in target_leaves]
+#         leaves = query_leaves + target_leaves
+#     else:
+#         target_df = query_df 
+#         leaves = query_leaves
+#         leaf_pairs = list(combinations(query_leaves, 2))
+
+#     # Precompute the distances to the roots. 
+#     distances_to_root = {leaf:tree.distance(tree.root, leaf) for leaf in leaves} # Can use the clade objects themselves as keys. 
+#     distance_df = list()
+    
+#     for query_leaf, target_leaf in tqdm(leaf_pairs, desc='tree_get_distances'): # Using combinations, so there should not be any duplicates or zeros. 
+#     # for query_leaf, target_leaf in list(combinations(leaves, 2)): # Using combinations, so there should not be any duplicates or zeros. 
+#         query_genome_id, target_genome_id = query_leaf.name, target_leaf.name 
+#         row = {'query_genome_id':query_leaf.name, 'target_genome_id':target_leaf.name}
+
+#         lca = tree.common_ancestor(query_leaf, target_leaf) # Using the LCA to get distance is *much* faster (thanks ChatGPT)... should look into why. 
+#         lca_distance_to_root = distances_to_root.get(lca, tree.distance(tree.root, lca)) # Only compute the distance if it's not already in the dictionary. 
+#         distances_to_root[lca] = lca_distance_to_root # Store in the lookup table. 
+#         distance = distances_to_root[query_leaf] + distances_to_root[target_leaf] - (2 * lca_distance_to_root)
+        
+#         if (max_distance is None) or (distance < max_distance):
+#             row['distance'] = distance 
+#             row['query_category'], row['target_category'] = query_df.loc[query_genome_id].category, target_df.loc[target_genome_id].category
+#             row['query_protein_id'], row['target_protein_id'] = query_df.loc[query_genome_id].protein_id, target_df.loc[target_genome_id].protein_id
+#             row['category'] = ' vs. '.join(sorted([row['query_category'], row['target_category']]))
+#             distance_df.append(row) # Only add if the distance is not too far. 
+
+#     distance_df = pd.DataFrame(distance_df)
+#     return distance_df
 
 
-def tree_relabel(input_path, output_path, label_map:dict=None):
+def tree_relabel_file(input_path, output_path, label_map:dict=None):
 
     assert len(list(label_map.keys())) == len(set(label_map.keys())), 'tree_relabel: New label IDs are not unique.'
 
@@ -24,6 +99,13 @@ def tree_relabel(input_path, output_path, label_map:dict=None):
     with open(output_path, 'w') as f:
         f.write(tree)
 
+
+def tree_relabel(tree, label_map:dict=None):
+
+    assert len(list(label_map.keys())) == len(set(label_map.keys())), 'tree_relabel: New label IDs are not unique.'
+    for node in tree.get_terminals():
+        node.name = label_map.get(node.name, node.name)
+    return tree 
 
 def tree_remove_nonterminals(tree):
 
@@ -48,10 +130,6 @@ def tree_subset(tree, ids:list=[]):
 
 def tree_write(tree, path:str=None):
     Phylo.write(tree, path, format='newick')
-
-
-def tree_write(tree, path:str, fmt:str='newick'):
-    Phylo.write(tree, path, format=fmt)
 
 
 def tree_get_palette_continuous(name:str='coolwarm', values=None):
